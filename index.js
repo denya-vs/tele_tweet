@@ -4,12 +4,10 @@ const OpenAI = require('openai');
 require('dotenv').config();
 const fetch = require('node-fetch');
 
-// Конфигурация Telegram
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 
-// Конфигурация Twitter
 const twitterClient = new TwitterApi({
   appKey: process.env.TWITTER_API_KEY,
   appSecret: process.env.TWITTER_API_SECRET,
@@ -17,12 +15,10 @@ const twitterClient = new TwitterApi({
   accessSecret: process.env.TWITTER_ACCESS_SECRET,
 });
 
-// Конфигурация OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Разбивает текст на части для твита
 async function downloadPhotoFromTelegram(photoArray) {
   const photo = photoArray[photoArray.length - 1];
   const file = await bot.getFile(photo.file_id);
@@ -49,7 +45,6 @@ function splitIntoTweets(text, maxLength = 280) {
   return tweets;
 }
 
-// Постит тред в Twitter
 async function postThread(tweets, mediaId = null) {
   let lastTweetId = null;
 
@@ -57,17 +52,16 @@ async function postThread(tweets, mediaId = null) {
     const params = {
       text: tweet,
       ...(index === 0 && mediaId
-          ? { media: { media_ids: [mediaId] } } // Если это первый твит, прикрепляем media_id
+          ? { media: { media_ids: [mediaId] } }
           : {}),
-      ...(lastTweetId ? { reply: { in_reply_to_tweet_id: lastTweetId } } : {}) // Привязываем тред
+      ...(lastTweetId ? { reply: { in_reply_to_tweet_id: lastTweetId } } : {})
     };
 
     const postedTweet = await twitterClient.v2.tweet(params);
-    lastTweetId = postedTweet.data.id; // Сохраняем ID твита
+    lastTweetId = postedTweet.data.id;
   }
 }
 
-// Генерирует перевод и теги с помощью OpenAI
 async function generateTranslationAndTags(text) {
   const prompt =  `
 You are a helpful assistant that processes text for Twitter. Take the input text and:
@@ -96,14 +90,11 @@ Output:
   }
 }
 
-// Обработчик новых сообщений
 bot.on('channel_post', async (msg) => {
   console.log('Received a new channel post:', msg);
 
-  // Проверяем, совпадает ли ID канала с TELEGRAM_CHAT_ID
   let mediaId = null;
 
-  // Обработка изображений (если есть)
   if (msg.photo) {
     console.log('Downloading photo from Telegram...');
     const photoUrl = await downloadPhotoFromTelegram(msg.photo);
@@ -116,7 +107,6 @@ bot.on('channel_post', async (msg) => {
     return;
   }
 
-  // Используем либо текст сообщения, либо подпись к медиа
   const messageText = msg.text || msg.caption || '';
   if (!messageText) {
     console.log('Channel post ignored: No text or caption in the channel post');
