@@ -2,6 +2,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const { TwitterApi } = require('twitter-api-v2');
 const OpenAI = require('openai');
 require('dotenv').config();
+const fetch = require('node-fetch');
 
 // Конфигурация Telegram
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -22,6 +23,20 @@ const openai = new OpenAI({
 });
 
 // Разбивает текст на части для твита
+async function downloadPhotoFromTelegram(photoArray) {
+  const photo = photoArray[photoArray.length - 1];
+  const file = await bot.getFile(photo.file_id);
+  const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${file.file_path}`;
+  return fileUrl;
+}
+
+async function uploadMediaToTwitter(photoUrl) {
+  const response = await fetch(photoUrl);
+  const buffer = await response.buffer();
+  const mediaId = await twitterClient.v1.uploadMedia(buffer, { type: 'image/jpeg' });
+  return mediaId;
+}
+
 function splitIntoTweets(text, maxLength = 280) {
   const tweets = [];
   while (text.length > maxLength) {
@@ -35,11 +50,20 @@ function splitIntoTweets(text, maxLength = 280) {
 }
 
 // Постит тред в Twitter
-async function postThread(tweets) {
+async function postThread(tweets, mediaId = null) {
   let lastTweetId = null;
-  for (const tweet of tweets) {
-    const postedTweet = await twitterClient.v2.tweet(tweet, lastTweetId ? { in_reply_to_status_id: lastTweetId } : {});
-    lastTweetId = postedTweet.data.id;
+
+  for (const [index, tweet] of tweets.entries()) {
+    const params = {
+      text: tweet,
+      ...(index === 0 && mediaId
+          ? { media: { media_ids: [mediaId] } } // Если это первый твит, прикрепляем media_id
+          : {}),
+      ...(lastTweetId ? { reply: { in_reply_to_tweet_id: lastTweetId } } : {}) // Привязываем тред
+    };
+
+    const postedTweet = await twitterClient.v2.tweet(params);
+    lastTweetId = postedTweet.data.id; // Сохраняем ID твита
   }
 }
 
@@ -49,7 +73,13 @@ async function generateTranslationAndTags(text) {
 You are a helpful assistant that processes text for Twitter. Take the input text and:
 1. Translate the content into natural English.
 2. Maintain the original formatting, including newlines (do NOT join sentences into one line).
-3. Add 2-3 hashtags at the end.`;
+3. Add 2-3 hashtags at the end.
+
+Input:
+${text}
+
+Output:
+`;
 
   try {
     const response = await openai.chat.completions.create({
@@ -71,6 +101,16 @@ bot.on('channel_post', async (msg) => {
   console.log('Received a new channel post:', msg);
 
   // Проверяем, совпадает ли ID канала с TELEGRAM_CHAT_ID
+  let mediaId = null;
+
+  // Обработка изображений (если есть)
+  if (msg.photo) {
+    console.log('Downloading photo from Telegram...');
+    const photoUrl = await downloadPhotoFromTelegram(msg.photo);
+    mediaId = await uploadMediaToTwitter(photoUrl);
+    console.log('Uploaded photo to Twitter with media ID:', mediaId);
+  }
+
   if (msg.chat.id.toString() !== TELEGRAM_CHAT_ID) {
     console.log('Channel post ignored: Chat ID does not match configured TELEGRAM_CHAT_ID:', msg.chat.id.toString());
     return;
@@ -95,7 +135,7 @@ bot.on('channel_post', async (msg) => {
     console.log('Split channel post text into tweets:', tweets);
 
     console.log('Posting tweet thread from channel post...');
-    await postThread(tweets);
+    await postThread(tweets, mediaId);
 
     console.log('Tweet thread successfully posted from channel post!');
   } catch (error) {
