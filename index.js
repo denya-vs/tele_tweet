@@ -22,15 +22,13 @@ const openai = new OpenAI({
 async function downloadPhotoFromTelegram(photoArray) {
   const photo = photoArray[photoArray.length - 1];
   const file = await bot.getFile(photo.file_id);
-  const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${file.file_path}`;
-  return fileUrl;
+  return `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${file.file_path}`;
 }
 
 async function uploadMediaToTwitter(photoUrl) {
   const response = await fetch(photoUrl);
   const buffer = await response.buffer();
-  const mediaId = await twitterClient.v1.uploadMedia(buffer, { type: 'image/jpeg' });
-  return mediaId;
+  return await twitterClient.v1.uploadMedia(buffer, {type: 'image/jpeg'});
 }
 
 function splitIntoTweets(text, maxLength = 280) {
