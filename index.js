@@ -45,11 +45,11 @@ async function postThread(tweets) {
 
 // Генерирует перевод и теги с помощью OpenAI
 async function generateTranslationAndTags(text) {
-  const prompt = `
-You are a helpful assistant that translates text for tweets. Translate the following text into English and add 2-3 popular hashtags relevant to the topic:
-Text: "${text}"
-Return the result in the format: "Translated text #hashtag1 #hashtag2"
-`;
+  const prompt =  `
+You are a helpful assistant that processes text for Twitter. Take the input text and:
+1. Translate the content into natural English.
+2. Maintain the original formatting, including newlines (do NOT join sentences into one line).
+3. Add 2-3 hashtags at the end.`;
 
   try {
     const response = await openai.chat.completions.create({
@@ -59,7 +59,7 @@ Return the result in the format: "Translated text #hashtag1 #hashtag2"
       max_tokens: 200,
     });
 
-    return response.choices[0].message.content.trim();
+    return response.choices[0].message.content.trim().replace(/^"|"$/g, '');
   } catch (error) {
     console.error('Error with OpenAI API:', error.message);
     throw error;
@@ -76,9 +76,10 @@ bot.on('channel_post', async (msg) => {
     return;
   }
 
-  const messageText = msg.text || '';
+  // Используем либо текст сообщения, либо подпись к медиа
+  const messageText = msg.text || msg.caption || '';
   if (!messageText) {
-    console.log('Channel post ignored: No text in the channel post');
+    console.log('Channel post ignored: No text or caption in the channel post');
     return;
   }
 
