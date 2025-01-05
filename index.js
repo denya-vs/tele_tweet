@@ -33,13 +33,44 @@ async function uploadMediaToTwitter(photoUrl) {
 
 function splitIntoTweets(text, maxLength = 280) {
   const tweets = [];
+  const sentenceEndings = /[.!?]/g;
+
   while (text.length > maxLength) {
-    let splitIndex = text.lastIndexOf(' ', maxLength);
-    if (splitIndex === -1) splitIndex = maxLength;
-    tweets.push(text.slice(0, splitIndex));
+    let splitIndex = -1;
+    let lastSentenceEnd = -1;
+
+    // Find the last sentence-ending punctuation before maxLength
+    sentenceEndings.lastIndex = 0;
+    let match;
+    while ((match = sentenceEndings.exec(text)) && match.index < maxLength) {
+      lastSentenceEnd = match.index + 1;
+    }
+
+    // If there's a sentence-ending punctuation, split at that point
+    if (lastSentenceEnd > 0) {
+      splitIndex = lastSentenceEnd;
+    } else {
+      // Otherwise, split at the last space within maxLength
+      splitIndex = text.lastIndexOf(' ', maxLength);
+      if (splitIndex === -1) splitIndex = maxLength;
+    }
+
+    // Avoid splitting in the middle of a URL
+    const urlPattern = /\b(?:https?|ftp):\/\/\S+/gi;
+    const matchUrl = text.match(urlPattern);
+    if (matchUrl && matchUrl.index < maxLength && matchUrl.index + matchUrl[0].length > maxLength) {
+      splitIndex = matchUrl.index + matchUrl[0].length;
+    }
+
+    tweets.push(text.slice(0, splitIndex).trim());
     text = text.slice(splitIndex).trim();
   }
-  tweets.push(text);
+
+  // Add the last segment
+  if (text.length > 0) {
+    tweets.push(text);
+  }
+
   return tweets;
 }
 
