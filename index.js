@@ -33,6 +33,7 @@ async function uploadMediaToTwitter(photoUrl) {
 
 function splitIntoTweets(text, maxLength = 280) {
   const tweets = [];
+  const urlPattern = /\b(?:https?|ftp):\/\/\S+/gi;
   const sentenceEndings = /[.!?]/g;
 
   while (text.length > maxLength) {
@@ -56,10 +57,24 @@ function splitIntoTweets(text, maxLength = 280) {
     }
 
     // Avoid splitting in the middle of a URL
-    const urlPattern = /\b(?:https?|ftp):\/\/\S+/gi;
-    const matchUrl = text.match(urlPattern);
-    if (matchUrl && matchUrl.index < maxLength && matchUrl.index + matchUrl[0].length > maxLength) {
-      splitIndex = matchUrl.index + matchUrl[0].length;
+    const urlMatch = [...text.matchAll(urlPattern)];
+    if (urlMatch.length > 0) {
+      for (const match of urlMatch) {
+        const urlStart = match.index;
+        const urlEnd = urlStart + match[0].length;
+
+        if (urlStart < splitIndex && urlEnd > splitIndex) {
+          if (splitIndex > maxLength || urlEnd - urlStart > maxLength) {
+            throw new Error("URL exceeds the maxLength limit and cannot fit in a single tweet.");
+          }
+
+          splitIndex = urlStart;
+        }
+      }
+    }
+
+    if (splitIndex > maxLength) {
+      throw new Error("Tweet exceeds maxLength due to an unhandled case.");
     }
 
     tweets.push(text.slice(0, splitIndex).trim());
