@@ -36,52 +36,58 @@ function splitIntoTweets(text, maxLength = 280) {
   const urlPattern = /\b(?:https?|ftp):\/\/\S+/gi;
   const sentenceEndings = /[.!?]/g;
 
+  // While the text length exceeds the max allowed for a single tweet
   while (text.length > maxLength) {
     let splitIndex = -1;
     let lastSentenceEnd = -1;
 
-    // Find the last sentence-ending punctuation before maxLength
+    // Try finding the nearest sentence-ending punctuation before maxLength
     sentenceEndings.lastIndex = 0;
     let match;
     while ((match = sentenceEndings.exec(text)) && match.index < maxLength) {
-      lastSentenceEnd = match.index + 1;
+      lastSentenceEnd = match.index + 1; // Include punctuation in split
     }
 
-    // If there's a sentence-ending punctuation, split at that point
     if (lastSentenceEnd > 0) {
       splitIndex = lastSentenceEnd;
     } else {
-      // Otherwise, split at the last space within maxLength
+      // Otherwise, find the last space to split between words
       splitIndex = text.lastIndexOf(' ', maxLength);
-      if (splitIndex === -1) splitIndex = maxLength;
+      if (splitIndex === -1) splitIndex = maxLength; // If no space found, force split
     }
 
-    // Avoid splitting in the middle of a URL
+    // Avoid splitting URLs in the middle
     const urlMatch = [...text.matchAll(urlPattern)];
     if (urlMatch.length > 0) {
       for (const match of urlMatch) {
         const urlStart = match.index;
         const urlEnd = urlStart + match[0].length;
 
+        // Check if splitIndex overlaps with a URL
         if (urlStart < splitIndex && urlEnd > splitIndex) {
-          if (splitIndex > maxLength || urlEnd - urlStart > maxLength) {
-            throw new Error("URL exceeds the maxLength limit and cannot fit in a single tweet.");
+          // Ensure the entire URL fits in a single tweet
+          if (urlEnd - urlStart > maxLength) {
+            throw new Error("URL exceeds maxLength limit and cannot fit in a single tweet.");
           }
-
-          splitIndex = urlStart;
+          splitIndex = urlStart; // Adjust splitIndex to start of URL
         }
       }
     }
 
-    if (splitIndex > maxLength) {
-      throw new Error("Tweet exceeds maxLength due to an unhandled case.");
+    // Ensure we avoid invalid splitIndex or empty segments
+    if (splitIndex === -1 || splitIndex > text.length) {
+      throw new Error("Invalid split operation. Check input text or length constraints.");
     }
 
-    tweets.push(text.slice(0, splitIndex).trim());
+    // Push the determined segment into the tweets array
+    const segment = text.slice(0, splitIndex).trim();
+    if (segment.length > 0) {
+      tweets.push(segment);
+    }
     text = text.slice(splitIndex).trim();
   }
 
-  // Add the last segment
+  // Add the remaining text (if any) as the last tweet
   if (text.length > 0) {
     tweets.push(text);
   }
