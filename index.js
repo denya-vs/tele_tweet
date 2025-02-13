@@ -33,63 +33,27 @@ async function uploadMediaToTwitter(photoUrl) {
 
 function splitIntoTweets(text, maxLength = 280) {
   const tweets = [];
-  const urlPattern = /\b(?:https?|ftp):\/\/\S+/gi;
-  const sentenceEndings = /[.!?]/g;
 
-  // While the text length exceeds the max allowed for a single tweet
-  while (text.length > maxLength) {
-    let splitIndex = -1;
-    let lastSentenceEnd = -1;
+  // Split the text into lines
+  const lines = text.split('\n');
 
-    // Try finding the nearest sentence-ending punctuation before maxLength
-    sentenceEndings.lastIndex = 0;
-    let match;
-    while ((match = sentenceEndings.exec(text)) && match.index < maxLength) {
-      lastSentenceEnd = match.index + 1; // Include punctuation in split
-    }
+  let currentTweet = '';
 
-    if (lastSentenceEnd > 0) {
-      splitIndex = lastSentenceEnd;
+  for (const line of lines) {
+    const potentialTweet = (currentTweet + (currentTweet ? '\n' : '') + line).trim();
+
+    if (potentialTweet.length <= maxLength) {
+      currentTweet = potentialTweet;
     } else {
-      // Otherwise, find the last space to split between words
-      splitIndex = text.lastIndexOf(' ', maxLength);
-      if (splitIndex === -1) splitIndex = maxLength; // If no space found, force split
+      // Push the current tweet and start a new one
+      tweets.push(currentTweet.trim());
+      currentTweet = line; // Start a new tweet with the current line
     }
-
-    // Avoid splitting URLs in the middle
-    const urlMatch = [...text.matchAll(urlPattern)];
-    if (urlMatch.length > 0) {
-      for (const match of urlMatch) {
-        const urlStart = match.index;
-        const urlEnd = urlStart + match[0].length;
-
-        // Check if splitIndex overlaps with a URL
-        if (urlStart < splitIndex && urlEnd > splitIndex) {
-          // Ensure the entire URL fits in a single tweet
-          if (urlEnd - urlStart > maxLength) {
-            throw new Error("URL exceeds maxLength limit and cannot fit in a single tweet.");
-          }
-          splitIndex = urlStart; // Adjust splitIndex to start of URL
-        }
-      }
-    }
-
-    // Ensure we avoid invalid splitIndex or empty segments
-    if (splitIndex === -1 || splitIndex > text.length) {
-      throw new Error("Invalid split operation. Check input text or length constraints.");
-    }
-
-    // Push the determined segment into the tweets array
-    const segment = text.slice(0, splitIndex).trim();
-    if (segment.length > 0) {
-      tweets.push(segment);
-    }
-    text = text.slice(splitIndex).trim();
   }
 
-  // Add the remaining text (if any) as the last tweet
-  if (text.length > 0) {
-    tweets.push(text);
+  // Add the last tweet if it's not empty
+  if (currentTweet.length > 0) {
+    tweets.push(currentTweet.trim());
   }
 
   return tweets;
